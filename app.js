@@ -14,8 +14,23 @@ const DEFAULT_SETTINGS = {
   net: 5300.000,
   delay: 15,
   workdays: 22,
-  leaveQuota: 30
+  leaveQuota: 30,
+  notes: ""
 };
+
+// Livrables types tirés du suivi (Excel) — modifiables ensuite
+const DEFAULT_DELIVERABLES = [
+  { title: "Manuel de procédures (MAJ)", desc: "Mise à jour du manuel de procédures du projet", recurrence: "ponctuel" },
+  { title: "PV COPIL", desc: "Compte-rendu du comité de pilotage", recurrence: "trimestriel" },
+  { title: "Rapport narratif périodique", desc: "Rapport narratif de période (P1, P2...)", recurrence: "trimestriel" },
+  { title: "Planning mensuel", desc: "Planning des activités du mois", recurrence: "mensuel" },
+  { title: "Cadre logique", desc: "Cadre logique du projet — version à jour", recurrence: "ponctuel" },
+  { title: "Dashboard SERA", desc: "Tableau de suivi-évaluation et reporting (3 tableaux)", recurrence: "mensuel" },
+  { title: "Compte-rendu info-session", desc: "Synthèse des sessions d'information aux bénéficiaires", recurrence: "ponctuel" },
+  { title: "Règlement Intérieur (MAJ)", desc: "Mise à jour du règlement intérieur", recurrence: "ponctuel" },
+  { title: "TDR Admin/Fin (MAJ)", desc: "Termes de référence Admin & Finance", recurrence: "ponctuel" },
+  { title: "Charte du comité de sélection (MAJ)", desc: "Charte mise à jour", recurrence: "ponctuel" }
+];
 
 const STORE_KEY = "consultantTrackerData_v1";
 
@@ -94,6 +109,60 @@ function renderDashboard() {
   const delivered = DATA.deliverables.filter(d => d.deliveredDate).length;
   document.getElementById("deliverableStats").innerHTML =
     `<p><b>${total}</b> livrables enregistrés · <b>${delivered}</b> livrés · <b>${validated}</b> validés par le coordinateur.</p>`;
+
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const today = ymd(new Date());
+  const in7 = ymd(addDays(new Date(), 7));
+  const alerts = [];
+
+  DATA.deliverables.forEach(d => {
+    if (d.dueDate && d.dueDate < today && !d.deliveredDate) {
+      alerts.push({ level: "danger", msg: `Livrable en retard : <b>${esc(d.title)}</b>`, when: `prévu le ${d.dueDate}` });
+    } else if (d.dueDate && d.dueDate <= in7 && !d.deliveredDate) {
+      alerts.push({ level: "warn", msg: `Livrable à rendre bientôt : <b>${esc(d.title)}</b>`, when: `prévu le ${d.dueDate}` });
+    }
+    if (d.evaluationDeadline && d.evaluationDeadline < today && !d.validated) {
+      alerts.push({ level: "danger", msg: `Évaluation en retard : <b>${esc(d.title)}</b> par ${esc(d.evaluator)}`, when: `échéance ${d.evaluationDeadline}` });
+    } else if (d.evaluationDeadline && d.evaluationDeadline <= in7 && !d.validated) {
+      alerts.push({ level: "warn", msg: `Évaluation proche : <b>${esc(d.title)}</b>`, when: `échéance ${d.evaluationDeadline}` });
+    }
+    if (d.deliveredDate && !d.justificatifLink && !d.justificatifFile) {
+      alerts.push({ level: "info", msg: `Justificatif manquant : <b>${esc(d.title)}</b>`, when: "ajouter lien ou fichier" });
+    }
+  });
+
+  DATA.tasks.forEach(t => {
+    if (t.due && t.due < today && t.status !== "done") {
+      alerts.push({ level: "warn", msg: `Tâche en retard : <b>${esc(t.title)}</b>`, when: `échéance ${t.due}` });
+    }
+  });
+
+  DATA.disbursements.forEach(d => {
+    if (d.expectedDate && d.expectedDate < today && d.status !== "paid") {
+      alerts.push({ level: "danger", msg: `Paiement en retard : mois ${d.index} (${esc(d.month)})`, when: `attendu le ${d.expectedDate}` });
+    }
+    if (d.status === "paid" && !d.receiptFile && !d.receiptRef) {
+      alerts.push({ level: "info", msg: `Reçu manquant : mois ${d.index} (${esc(d.month)})`, when: "uploader le reçu" });
+    }
+  });
+
+  // Quota congés
+  const usedLeaves = computeUsedLeaves();
+  if (usedLeaves > DATA.settings.leaveQuota) {
+    alerts.push({ level: "danger", msg: `Quota de congés dépassé : <b>${usedLeaves}</b> / ${DATA.settings.leaveQuota}`, when: "" });
+  } else if (usedLeaves >= DATA.settings.leaveQuota * 0.8) {
+    alerts.push({ level: "warn", msg: `Quota de congés bientôt atteint : <b>${usedLeaves}</b> / ${DATA.settings.leaveQuota}`, when: "" });
+  }
+
+  const list = document.getElementById("alertsList");
+  if (!alerts.length) {
+    list.innerHTML = `<p class="alert-empty">✅ Aucune alerte. Toutes les échéances sont respectées.</p>`;
+    return;
+  }
+  list.innerHTML = alerts.map(a => `<div class="alert-item ${a.level}">${a.msg}${a.when?`<span class="when">(${a.when})</span>`:""}</div>`).join("");
 }
 
 function renderMonthSummary(monthStr) {
@@ -221,45 +290,123 @@ document.getElementById("nextMonth").addEventListener("click", () => {
 });
 
 // ---------- DELIVERABLES ----------
+function newDeliverable(extra = {}) {
+  return {
+    id: uid(),
+    title: "Nouveau livrable", desc: "", recurrence: "ponctuel",
+    dueDate: "", deliveredDate: "",
+    status: "todo", validated: false,
+    evaluator: "Coordinateur",
+    evaluationMethod: "Revue documentaire",
+    evaluationDeadline: "",
+    notificationDate: "",
+    justificatifLink: "",
+    justificatifFile: "", justificatifFileName: "",
+    notes: "",
+    ...extra
+  };
+}
+
 function renderDeliverables() {
-  const tb = document.getElementById("deliverablesBody");
-  tb.innerHTML = DATA.deliverables.map(d => `
-    <tr data-id="${d.id}">
-      <td><input data-f="title" value="${esc(d.title)}" /></td>
-      <td><textarea data-f="desc" rows="1">${esc(d.desc)}</textarea></td>
-      <td><input type="date" data-f="dueDate" value="${d.dueDate||""}" /></td>
-      <td><input type="date" data-f="deliveredDate" value="${d.deliveredDate||""}" /></td>
-      <td>
+  const list = document.getElementById("deliverablesList");
+  if (!DATA.deliverables.length) {
+    list.innerHTML = `<p class="alert-empty">Aucun livrable. Cliquez sur « Charger livrables types du contrat » pour pré-remplir.</p>`;
+    return;
+  }
+  const today = ymd(new Date());
+  list.innerHTML = DATA.deliverables.map(d => {
+    const overdue = d.dueDate && d.dueDate < today && !d.deliveredDate;
+    const cls = d.validated ? "validated" : (d.deliveredDate ? "delivered" : (overdue ? "overdue" : ""));
+    const fileLink = d.justificatifFile
+      ? `<a href="${d.justificatifFile}" download="${esc(d.justificatifFileName)}">📎 ${esc(d.justificatifFileName)}</a>
+         <span class="clear-file" data-clear="${d.id}">✕</span>`
+      : `<input type="file" data-f="justificatifFile" />`;
+    return `
+    <div class="deliv-card ${cls}" data-id="${d.id}">
+      <div class="top">
+        <input class="title" data-f="title" value="${esc(d.title)}" />
         <select data-f="status">
           <option value="todo" ${d.status==="todo"?"selected":""}>À faire</option>
           <option value="doing" ${d.status==="doing"?"selected":""}>En cours</option>
           <option value="delivered" ${d.status==="delivered"?"selected":""}>Livré</option>
         </select>
-      </td>
-      <td><input type="checkbox" data-f="validated" ${d.validated?"checked":""} /></td>
-      <td><input data-f="link" value="${esc(d.link)}" placeholder="URL" /></td>
-      <td><button class="icon-btn" data-del="${d.id}">🗑️</button></td>
-    </tr>
-  `).join("");
-  tb.querySelectorAll("input, select, textarea").forEach(el => {
-    el.addEventListener("change", e => {
-      const tr = e.target.closest("tr");
-      const id = tr.dataset.id;
+        <label style="flex-direction:row;align-items:center;gap:4px;">
+          <input type="checkbox" data-f="validated" ${d.validated?"checked":""} /> Validé
+        </label>
+        ${overdue ? '<span class="status-badge status-overdue">EN RETARD</span>' : ''}
+      </div>
+      <div class="fields">
+        <label>Description <textarea data-f="desc" rows="2">${esc(d.desc)}</textarea></label>
+        <label>Récurrence
+          <select data-f="recurrence">
+            <option value="ponctuel" ${d.recurrence==="ponctuel"?"selected":""}>Ponctuel</option>
+            <option value="mensuel" ${d.recurrence==="mensuel"?"selected":""}>Mensuel</option>
+            <option value="trimestriel" ${d.recurrence==="trimestriel"?"selected":""}>Trimestriel</option>
+            <option value="annuel" ${d.recurrence==="annuel"?"selected":""}>Annuel</option>
+          </select>
+        </label>
+        <label>Date prévue <input type="date" data-f="dueDate" value="${d.dueDate||""}" /></label>
+        <label>Date livrée <input type="date" data-f="deliveredDate" value="${d.deliveredDate||""}" /></label>
+        <label>Évaluateur (qui ?) <input data-f="evaluator" value="${esc(d.evaluator)}" /></label>
+        <label>Méthode d'évaluation (comment ?) <input data-f="evaluationMethod" value="${esc(d.evaluationMethod)}" /></label>
+        <label>Échéance d'évaluation (quand ?) <input type="date" data-f="evaluationDeadline" value="${d.evaluationDeadline||""}" /></label>
+        <label>Date notification <input type="date" data-f="notificationDate" value="${d.notificationDate||""}" /></label>
+        <label>Justificatif — lien <input data-f="justificatifLink" value="${esc(d.justificatifLink)}" placeholder="URL Drive..." /></label>
+        <label>Justificatif — fichier <div class="file-row">${fileLink}</div></label>
+        <label style="grid-column: 1 / -1;">Notes <textarea data-f="notes" rows="2">${esc(d.notes)}</textarea></label>
+      </div>
+      <div class="actions">
+        <button class="icon-btn" data-del="${d.id}">🗑️ Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".deliv-card").forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll("input, select, textarea").forEach(el => {
+      if (el.type === "file") {
+        el.addEventListener("change", e => {
+          const f = e.target.files[0];
+          if (!f) return;
+          if (f.size > 2 * 1024 * 1024) { alert("Fichier > 2 Mo : préférez un lien."); return; }
+          const r = new FileReader();
+          r.onload = ev => {
+            const item = DATA.deliverables.find(x => x.id === id);
+            item.justificatifFile = ev.target.result;
+            item.justificatifFileName = f.name;
+            saveData(); renderDeliverables();
+          };
+          r.readAsDataURL(f);
+        });
+      } else {
+        el.addEventListener("change", e => {
+          const item = DATA.deliverables.find(x => x.id === id);
+          item[e.target.dataset.f] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+          saveData(); renderDeliverables(); renderDashboard();
+        });
+      }
+    });
+    const clr = card.querySelector("[data-clear]");
+    if (clr) clr.addEventListener("click", () => {
       const item = DATA.deliverables.find(x => x.id === id);
-      const f = e.target.dataset.f;
-      item[f] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-      saveData();
+      item.justificatifFile = ""; item.justificatifFileName = "";
+      saveData(); renderDeliverables();
+    });
+    card.querySelector("[data-del]").addEventListener("click", () => {
+      if (confirm("Supprimer ce livrable ?")) {
+        DATA.deliverables = DATA.deliverables.filter(x => x.id !== id);
+        saveData(); renderDeliverables();
+      }
     });
   });
-  tb.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
-    if (confirm("Supprimer ce livrable ?")) {
-      DATA.deliverables = DATA.deliverables.filter(x => x.id !== b.dataset.del);
-      saveData(); renderDeliverables();
-    }
-  }));
 }
 document.getElementById("addDeliverable").addEventListener("click", () => {
-  DATA.deliverables.push({ id: uid(), title: "Nouveau livrable", desc: "", dueDate: "", deliveredDate: "", status: "todo", validated: false, link: "" });
+  DATA.deliverables.push(newDeliverable());
+  saveData(); renderDeliverables();
+});
+document.getElementById("seedDeliverables").addEventListener("click", () => {
+  if (DATA.deliverables.length && !confirm("Ajouter les livrables types ? (les existants sont conservés)")) return;
+  DEFAULT_DELIVERABLES.forEach(d => DATA.deliverables.push(newDeliverable(d)));
   saveData(); renderDeliverables();
 });
 
@@ -324,7 +471,8 @@ function renderLeaves() {
       </td>
       <td><input type="date" data-f="from" value="${l.from||""}" /></td>
       <td><input type="date" data-f="to" value="${l.to||""}" /></td>
-      <td>${l.from && l.to ? Math.max(1, Math.round((parseYmd(l.to)-parseYmd(l.from))/86400000)+1) : 0}</td>
+      <td><input type="checkbox" data-f="halfDay" ${l.halfDay?"checked":""} /></td>
+      <td>${computeLeaveDays(l)}</td>
       <td><input data-f="reason" value="${esc(l.reason)}" /></td>
       <td>
         <select data-f="status">
@@ -340,7 +488,8 @@ function renderLeaves() {
     el.addEventListener("change", e => {
       const id = e.target.closest("tr").dataset.id;
       const item = DATA.leaves.find(x => x.id === id);
-      item[e.target.dataset.f] = e.target.value;
+      const f = e.target.dataset.f;
+      item[f] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
       saveData(); renderLeaves();
     });
   });
@@ -349,8 +498,13 @@ function renderLeaves() {
     saveData(); renderLeaves();
   }));
 }
+function computeLeaveDays(l) {
+  if (!l.from || !l.to) return 0;
+  const days = Math.max(1, Math.round((parseYmd(l.to)-parseYmd(l.from))/86400000)+1);
+  return l.halfDay ? 0.5 : days;
+}
 document.getElementById("addLeave").addEventListener("click", () => {
-  DATA.leaves.push({ id: uid(), type: "conge", from: "", to: "", reason: "", status: "pending" });
+  DATA.leaves.push({ id: uid(), type: "conge", from: "", to: "", halfDay: false, reason: "", status: "pending" });
   saveData(); renderLeaves();
 });
 
@@ -366,6 +520,11 @@ function renderDisbursements() {
       <td><input type="date" data-f="validationDate" value="${d.validationDate||""}" /></td>
       <td><input type="date" data-f="receivedDate" value="${d.receivedDate||""}" /></td>
       <td><input data-f="receiptRef" value="${esc(d.receiptRef)}" placeholder="N° reçu" /></td>
+      <td class="receipt-cell">
+        ${d.receiptFile
+          ? `<span class="file-attach"><a href="${d.receiptFile}" download="${esc(d.receiptFileName)}">📎 ${esc(d.receiptFileName)}</a> <span class="clear-file" data-clear="${d.id}">✕</span></span>`
+          : `<input type="file" data-f="receiptFile" accept="image/*,application/pdf" />`}
+      </td>
       <td>
         <select data-f="status">
           <option value="pending" ${d.status==="pending"?"selected":""}>En attente</option>
@@ -378,17 +537,39 @@ function renderDisbursements() {
     </tr>
   `).join("");
   tb.querySelectorAll("input, select").forEach(el => {
-    el.addEventListener("change", e => {
-      const id = e.target.closest("tr").dataset.id;
-      const item = DATA.disbursements.find(x => x.id === id);
-      item[e.target.dataset.f] = e.target.value;
-      if (e.target.dataset.f === "validationDate" && e.target.value) {
-        const expected = addDays(parseYmd(e.target.value), DATA.settings.delay || 15);
-        item.expectedDate = ymd(expected);
-      }
-      saveData(); updateDisbTotals();
-    });
+    if (el.type === "file") {
+      el.addEventListener("change", e => {
+        const id = e.target.closest("tr").dataset.id;
+        const item = DATA.disbursements.find(x => x.id === id);
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.size > 2 * 1024 * 1024) { alert("Fichier > 2 Mo : compressez ou utilisez un lien."); return; }
+        const r = new FileReader();
+        r.onload = ev => {
+          item.receiptFile = ev.target.result;
+          item.receiptFileName = f.name;
+          saveData(); renderDisbursements();
+        };
+        r.readAsDataURL(f);
+      });
+    } else {
+      el.addEventListener("change", e => {
+        const id = e.target.closest("tr").dataset.id;
+        const item = DATA.disbursements.find(x => x.id === id);
+        item[e.target.dataset.f] = e.target.value;
+        if (e.target.dataset.f === "validationDate" && e.target.value) {
+          const expected = addDays(parseYmd(e.target.value), DATA.settings.delay || 15);
+          item.expectedDate = ymd(expected);
+        }
+        saveData(); updateDisbTotals();
+      });
+    }
   });
+  tb.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => {
+    const item = DATA.disbursements.find(x => x.id === b.dataset.clear);
+    item.receiptFile = ""; item.receiptFileName = "";
+    saveData(); renderDisbursements();
+  }));
   tb.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
     DATA.disbursements = DATA.disbursements.filter(x => x.id !== b.dataset.del);
     saveData(); renderDisbursements();
@@ -435,7 +616,14 @@ function loadSettingsForm() {
   document.getElementById("setDelay").value = s.delay;
   document.getElementById("setWorkdays").value = s.workdays;
   document.getElementById("setLeaveQuota").value = s.leaveQuota;
+  document.getElementById("setNotes").value = s.notes || "";
+  document.getElementById("rMonthly").textContent = fmtMoney(s.monthly);
+  document.getElementById("rDelay").textContent = s.delay;
+  document.getElementById("rQuota").textContent = s.leaveQuota;
 }
+document.getElementById("setNotes").addEventListener("input", e => {
+  DATA.settings.notes = e.target.value; saveData();
+});
 document.getElementById("saveSettings").addEventListener("click", () => {
   DATA.settings = {
     name: document.getElementById("setName").value,
@@ -449,7 +637,8 @@ document.getElementById("saveSettings").addEventListener("click", () => {
     net: +document.getElementById("setNet").value,
     delay: +document.getElementById("setDelay").value,
     workdays: +document.getElementById("setWorkdays").value,
-    leaveQuota: +document.getElementById("setLeaveQuota").value
+    leaveQuota: +document.getElementById("setLeaveQuota").value,
+    notes: document.getElementById("setNotes").value
   };
   saveData(); renderAll();
   alert("Paramètres enregistrés.");

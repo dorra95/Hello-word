@@ -49,6 +49,11 @@
       </div>
     </div>
 
+    <div class="box alerts-box">
+      <h3>🔔 Alertes &amp; échéances manquées</h3>
+      <div id="alertsList"></div>
+    </div>
+
     <div class="box">
       <h3>État global des livrables</h3>
       <div id="deliverableStats"></div>
@@ -100,16 +105,14 @@
   <!-- DELIVERABLES -->
   <section id="deliverables" class="panel">
     <div class="toolbar">
-      <h2>Livrables</h2>
+      <h2>Livrables attendus</h2>
       <button id="addDeliverable" class="primary">+ Nouveau livrable</button>
+      <button id="seedDeliverables">Charger livrables types du contrat</button>
     </div>
-    <table class="data-table">
-      <thead><tr>
-        <th>Titre</th><th>Description</th><th>Date prévue</th><th>Date livrée</th>
-        <th>Statut</th><th>Validé par coord.</th><th>Lien</th><th></th>
-      </tr></thead>
-      <tbody id="deliverablesBody"></tbody>
-    </table>
+    <p class="info">
+      Chaque livrable peut être détaillé : description, date prévue/livrée, statut, <b>évaluateur</b> (qui), <b>méthode</b> (comment), <b>échéance d'évaluation</b> (quand), date de notification, justificatif (lien ou fichier joint), validation finale.
+    </p>
+    <div id="deliverablesList" class="cards-list"></div>
   </section>
 
   <!-- TASKS -->
@@ -141,7 +144,7 @@
     <p class="info">Quota annuel théorique : <b id="leaveQuota">—</b> jours (1,8333 × jours ouvrables/mois)</p>
     <table class="data-table">
       <thead><tr>
-        <th>Type</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Statut</th><th></th>
+        <th>Type</th><th>Du</th><th>Au</th><th>½ jour</th><th>Jours</th><th>Motif</th><th>Statut</th><th></th>
       </tr></thead>
       <tbody id="leavesBody"></tbody>
     </table>
@@ -161,7 +164,7 @@
       <thead><tr>
         <th>#</th><th>Mois</th><th>Montant théorique (TTC)</th><th>Montant payé</th>
         <th>Date validation livrables</th><th>Date réception</th>
-        <th>Référence reçu</th><th>Statut</th><th></th>
+        <th>Référence reçu</th><th>Reçu (fichier)</th><th>Statut</th><th></th>
       </tr></thead>
       <tbody id="disbursementsBody"></tbody>
     </table>
@@ -196,6 +199,43 @@
       <input type="file" id="importData" accept="application/json" hidden />
       <button id="resetData" class="danger">Réinitialiser toutes les données</button>
     </div>
+
+    <h2 style="margin-top:24px;">Règles back-office</h2>
+    <div class="rules-grid">
+      <div class="rule-card">
+        <h4>💰 Règles de salaire</h4>
+        <ul>
+          <li>Mensualité fixe TTC : <b id="rMonthly">—</b></li>
+          <li>Paiement après <b id="rDelay">—</b> jours suivant validation des livrables par le coordinateur</li>
+          <li>Salaire mensuel proratisé = mensualité × (jours effectifs / jours ouvrables du mois)</li>
+          <li>Initiative exonérée de TVA</li>
+          <li>Aucun paiement sans validation des livrables du mois</li>
+        </ul>
+      </div>
+      <div class="rule-card">
+        <h4>🏖️ Règles de congés</h4>
+        <ul>
+          <li>Quota annuel : <b id="rQuota">—</b> jours (≈ 1,8333 × jours ouvrables/mois)</li>
+          <li>Demi-journée acceptée (compteur = 0,5)</li>
+          <li>Toute absence doit être justifiée et approuvée par le coordinateur</li>
+          <li>Les jours fériés tunisiens ne sont pas décomptés du quota</li>
+          <li>Les autorisations exceptionnelles (≤ 2h) ne consomment pas de congé</li>
+        </ul>
+      </div>
+      <div class="rule-card">
+        <h4>📋 Règles de livrables</h4>
+        <ul>
+          <li>Tout livrable doit être daté, accompagné d'un justificatif (lien Drive ou fichier joint)</li>
+          <li>Évaluation par le coordinateur — méthode et délai à spécifier</li>
+          <li>Une notification est envoyée à l'échéance d'évaluation</li>
+          <li>Validation finale conditionne le paiement de la mensualité</li>
+          <li>Alerte automatique si échéance dépassée &gt; 0 jours</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 style="margin-top:24px;">Notes libres</h2>
+    <textarea id="setNotes" rows="6" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;" placeholder="Notes diverses, règles internes additionnelles..."></textarea>
   </section>
 </main>
 
