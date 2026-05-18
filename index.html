@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Suivi Mission Consultant SE — Initiative GreenTech Tunisie</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>Suivi Mission Consultant S&amp;E</h1>
+    <p class="sub">Initiative GreenTech Tunisie — Programme Greenov'i</p>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="dashboard">Tableau de bord</button>
+    <button class="tab" data-tab="calendar">Calendrier / Jours</button>
+    <button class="tab" data-tab="deliverables">Livrables</button>
+    <button class="tab" data-tab="tasks">Tâches</button>
+    <button class="tab" data-tab="leaves">Congés / Autorisations</button>
+    <button class="tab" data-tab="disbursements">Décaissements</button>
+    <button class="tab" data-tab="settings">Paramètres</button>
+  </nav>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="panel active">
+    <div class="cards">
+      <div class="card"><span class="label">Consultante</span><span class="value" id="kpiName">—</span></div>
+      <div class="card"><span class="label">Montant total contrat (TTC)</span><span class="value" id="kpiTotal">—</span></div>
+      <div class="card"><span class="label">Mensualité théorique (TTC)</span><span class="value" id="kpiMonthly">—</span></div>
+      <div class="card"><span class="label">Durée</span><span class="value" id="kpiDuration">—</span></div>
+      <div class="card"><span class="label">Mensualités payées</span><span class="value" id="kpiPaid">—</span></div>
+      <div class="card"><span class="label">Reste à percevoir</span><span class="value" id="kpiRemaining">—</span></div>
+      <div class="card"><span class="label">Jours travaillés (mois en cours)</span><span class="value" id="kpiDaysMonth">—</span></div>
+      <div class="card"><span class="label">Congés restants</span><span class="value" id="kpiLeavesLeft">—</span></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="box">
+        <h3>Sélectionner le mois</h3>
+        <input type="month" id="monthPicker" />
+        <div id="monthSummary" class="month-summary"></div>
+      </div>
+      <div class="box">
+        <h3>Prochaines échéances de paiement</h3>
+        <ul id="upcomingPayments"></ul>
+      </div>
+    </div>
+
+    <div class="box">
+      <h3>État global des livrables</h3>
+      <div id="deliverableStats"></div>
+    </div>
+  </section>
+
+  <!-- CALENDAR / DAYS -->
+  <section id="calendar" class="panel">
+    <div class="toolbar">
+      <input type="month" id="calMonth" />
+      <button id="prevMonth">◀</button>
+      <button id="nextMonth">▶</button>
+      <span class="legend">
+        <span class="lg p">Présence</span>
+        <span class="lg h">½ journée</span>
+        <span class="lg c">Congé</span>
+        <span class="lg a">Autorisation</span>
+        <span class="lg f">Férié</span>
+        <span class="lg w">Week-end</span>
+      </span>
+    </div>
+    <div id="calendarGrid" class="calendar-grid"></div>
+    <div id="dayEditor" class="day-editor hidden">
+      <h3>Modifier le jour <span id="editDate"></span></h3>
+      <label>Statut :
+        <select id="editStatus">
+          <option value="presence">Présence</option>
+          <option value="half">½ journée</option>
+          <option value="conge">Congé</option>
+          <option value="autorisation">Autorisation</option>
+          <option value="ferie">Férié</option>
+          <option value="absent">Absent</option>
+        </select>
+      </label>
+      <label>Description tâches / livrables :
+        <textarea id="editDesc" rows="3"></textarea>
+      </label>
+      <label>Livrables associés :
+        <input type="text" id="editDeliv" placeholder="Ex: PV COPIL, Manuel procédures..." />
+      </label>
+      <div class="row">
+        <button id="saveDay" class="primary">Enregistrer</button>
+        <button id="clearDay">Réinitialiser</button>
+        <button id="closeDay">Fermer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DELIVERABLES -->
+  <section id="deliverables" class="panel">
+    <div class="toolbar">
+      <h2>Livrables</h2>
+      <button id="addDeliverable" class="primary">+ Nouveau livrable</button>
+    </div>
+    <table class="data-table">
+      <thead><tr>
+        <th>Titre</th><th>Description</th><th>Date prévue</th><th>Date livrée</th>
+        <th>Statut</th><th>Validé par coord.</th><th>Lien</th><th></th>
+      </tr></thead>
+      <tbody id="deliverablesBody"></tbody>
+    </table>
+  </section>
+
+  <!-- TASKS -->
+  <section id="tasks" class="panel">
+    <div class="toolbar">
+      <h2>Tâches</h2>
+      <button id="addTask" class="primary">+ Nouvelle tâche</button>
+      <select id="taskFilter">
+        <option value="all">Toutes</option>
+        <option value="todo">À faire</option>
+        <option value="doing">En cours</option>
+        <option value="done">Terminées</option>
+      </select>
+    </div>
+    <table class="data-table">
+      <thead><tr>
+        <th>Titre</th><th>Détails</th><th>Échéance</th><th>Priorité</th><th>Statut</th><th></th>
+      </tr></thead>
+      <tbody id="tasksBody"></tbody>
+    </table>
+  </section>
+
+  <!-- LEAVES -->
+  <section id="leaves" class="panel">
+    <div class="toolbar">
+      <h2>Congés &amp; Autorisations</h2>
+      <button id="addLeave" class="primary">+ Nouvelle demande</button>
+    </div>
+    <p class="info">Quota annuel théorique : <b id="leaveQuota">—</b> jours (1,8333 × jours ouvrables/mois)</p>
+    <table class="data-table">
+      <thead><tr>
+        <th>Type</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Statut</th><th></th>
+      </tr></thead>
+      <tbody id="leavesBody"></tbody>
+    </table>
+  </section>
+
+  <!-- DISBURSEMENTS -->
+  <section id="disbursements" class="panel">
+    <div class="toolbar">
+      <h2>Décaissements / Paiements</h2>
+      <button id="generateSchedule" class="primary">Générer l'échéancier (19 mois)</button>
+    </div>
+    <p class="info">
+      Validation des livrables par le coordinateur → Paiement sous <b>15 jours</b>.
+      Mensualité théorique nette : voir Paramètres.
+    </p>
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Mois</th><th>Montant théorique (TTC)</th><th>Montant payé</th>
+        <th>Date validation livrables</th><th>Date réception</th>
+        <th>Référence reçu</th><th>Statut</th><th></th>
+      </tr></thead>
+      <tbody id="disbursementsBody"></tbody>
+    </table>
+    <div class="totals">
+      <div>Total théorique : <b id="totalTheoretical">0</b> DT</div>
+      <div>Total perçu : <b id="totalReceived">0</b> DT</div>
+      <div>Reste à percevoir : <b id="totalRemaining">0</b> DT</div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="panel">
+    <h2>Paramètres du contrat</h2>
+    <div class="form-grid">
+      <label>Nom consultant(e) <input type="text" id="setName" /></label>
+      <label>Client <input type="text" id="setClient" /></label>
+      <label>Projet <input type="text" id="setProject" /></label>
+      <label>Date de signature <input type="date" id="setSignDate" /></label>
+      <label>Date de début <input type="date" id="setStartDate" /></label>
+      <label>Durée (mois) <input type="number" id="setDuration" min="1" /></label>
+      <label>Montant total TTC (DT) <input type="number" id="setTotal" step="0.001" /></label>
+      <label>Mensualité TTC (DT) <input type="number" id="setMonthly" step="0.001" /></label>
+      <label>Mensualité NET (DT) <input type="number" id="setNet" step="0.001" /></label>
+      <label>Délai paiement après validation (jours) <input type="number" id="setDelay" /></label>
+      <label>Jours ouvrables / mois (référence) <input type="number" id="setWorkdays" /></label>
+      <label>Quota congés annuel (jours) <input type="number" id="setLeaveQuota" step="0.5" /></label>
+    </div>
+    <div class="row">
+      <button id="saveSettings" class="primary">Enregistrer</button>
+      <button id="exportData">Exporter les données (JSON)</button>
+      <button id="importDataBtn">Importer JSON</button>
+      <input type="file" id="importData" accept="application/json" hidden />
+      <button id="resetData" class="danger">Réinitialiser toutes les données</button>
+    </div>
+  </section>
+</main>
+
+<footer><small>Données stockées localement dans le navigateur (localStorage).</small></footer>
+
+<script src="app.js"></script>
+</body>
+</html>
