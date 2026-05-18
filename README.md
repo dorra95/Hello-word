@@ -34,4 +34,53 @@ python3 -m http.server
 
 ## Stockage
 
-Données enregistrées localement (`localStorage`). Utilisez **Exporter JSON** pour sauvegarder et **Importer JSON** pour restaurer.
+Données enregistrées localement (`localStorage`) par défaut. Pour partager les données entre plusieurs utilisateurs, voir « Activer la base partagée » ci-dessous.
+
+---
+
+## 🔐 Accès protégé par code
+
+Au chargement, l'application demande un code d'accès. Modifier la liste dans `config.js` :
+
+```js
+accessCodes: ["GREENTECH2026", "EYA-CONSULT"]
+```
+
+Les codes par défaut sont à changer avant tout partage public.
+
+---
+
+## 🌐 Publier en ligne (GitHub Pages)
+
+1. Repo GitHub → **Settings** → **Pages**
+2. Source : branche `claude/consultant-tracking-app-Y00GB`, dossier `/ (root)` → Save
+3. L'app sera live à `https://<utilisateur>.github.io/<repo>/`
+4. Partager l'URL + le code d'accès aux utilisateurs
+
+---
+
+## 🔄 Activer la base partagée (Firebase — optionnel)
+
+Sans config Firebase, chaque utilisateur a ses données isolées. Pour partager :
+
+1. Créer un projet sur https://console.firebase.google.com
+2. Dans le projet : **Ajouter une application Web** → copier l'objet `firebaseConfig`
+3. Activer **Firestore Database** (mode test pour démarrer)
+4. Activer **Authentication** → onglet **Sign-in method** → activer **Anonymous**
+5. Coller la config dans `config.js` sous `firebase: { ... }`
+6. Pousser sur GitHub
+
+Tous les utilisateurs avec le code d'accès partagent désormais le même espace de travail (un document Firestore identifié par `workspaceId`).
+
+### Règles Firestore recommandées (mode lecture/écriture pour utilisateurs authentifiés)
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /workspaces/{workspaceId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```

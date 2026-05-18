@@ -50,7 +50,12 @@ function loadData() {
     disbursements: []
   };
 }
-function saveData() { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }
+function saveData() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(DATA));
+  if (window.SYNC && window.SYNC.enabled && window.SYNC.remoteWrite) {
+    window.SYNC.remoteWrite(DATA);
+  }
+}
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function fmtMoney(n) { return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + " DT"; }
 function pad(n) { return String(n).padStart(2, "0"); }
@@ -683,6 +688,60 @@ function renderAll() {
   renderDisbursements();
 }
 
-// ---------- INIT ----------
-loadSettingsForm();
-renderAll();
+// ---------- LOGIN GATE ----------
+const SESSION_KEY = "consultantTrackerSession";
+function checkSession() {
+  try { return sessionStorage.getItem(SESSION_KEY) === "ok"; } catch { return false; }
+}
+function attemptLogin() {
+  const code = (document.getElementById("accessCode").value || "").trim();
+  const valid = ((window.APP_CONFIG && window.APP_CONFIG.accessCodes) || []);
+  if (valid.includes(code)) {
+    sessionStorage.setItem(SESSION_KEY, "ok");
+    revealApp();
+  } else {
+    document.getElementById("loginError").textContent = "Code incorrect.";
+  }
+}
+function revealApp() {
+  document.getElementById("loginOverlay").style.display = "none";
+  document.getElementById("appRoot").style.display = "";
+  loadSettingsForm();
+  renderAll();
+  updateFooterStatus();
+}
+function updateFooterStatus() {
+  const f = document.getElementById("footerStatus");
+  if (window.SYNC && window.SYNC.enabled) {
+    f.textContent = window.SYNC.ready
+      ? "🟢 Synchro partagée active (Firebase)"
+      : "🟡 Connexion à la base partagée...";
+  } else {
+    f.textContent = "💾 Données locales (localStorage)";
+  }
+}
+document.getElementById("loginBtn").addEventListener("click", attemptLogin);
+document.getElementById("accessCode").addEventListener("keydown", e => {
+  if (e.key === "Enter") attemptLogin();
+});
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  sessionStorage.removeItem(SESSION_KEY);
+  location.reload();
+});
+
+document.getElementById("modeLabel").textContent =
+  (window.APP_CONFIG && window.APP_CONFIG.firebase && window.APP_CONFIG.firebase.apiKey)
+    ? "Base partagée (Firebase)" : "Local (ce navigateur uniquement)";
+
+// Remote changes → reload UI
+document.addEventListener("sync-ready", () => updateFooterStatus());
+if (window.SYNC) {
+  window.SYNC.onRemoteChange = (remoteData) => {
+    DATA = remoteData;
+    localStorage.setItem(STORE_KEY, JSON.stringify(DATA));
+    loadSettingsForm();
+    renderAll();
+  };
+}
+
+if (checkSession()) revealApp();
