@@ -43,12 +43,57 @@ function loadData() {
   } catch (e) {}
   return {
     settings: { ...DEFAULT_SETTINGS },
-    days: {},        // { "YYYY-MM-DD": { status, desc, deliverables } }
+    days: {},
     deliverables: [],
     tasks: [],
     leaves: [],
     disbursements: []
   };
+}
+
+// Auto-amorçage des livrables et de l'échéancier au premier lancement
+function autoSeed() {
+  let seeded = false;
+  if (!DATA.deliverables.length) {
+    const start = parseYmd(DATA.settings.startDate);
+    DEFAULT_DELIVERABLES.forEach((d, i) => {
+      let due = "";
+      if (d.recurrence === "mensuel") {
+        due = ymd(new Date(start.getFullYear(), start.getMonth() + 1, 0));
+      } else if (d.recurrence === "trimestriel") {
+        due = ymd(addMonths(start, 3));
+      } else {
+        due = ymd(addMonths(start, Math.min(i + 1, 6)));
+      }
+      DATA.deliverables.push({
+        id: uid(), title: d.title, desc: d.desc, recurrence: d.recurrence,
+        dueDate: due, deliveredDate: "", status: "todo", validated: false,
+        evaluator: "Coordinateur", evaluationMethod: "Revue documentaire",
+        evaluationDeadline: ymd(addDays(parseYmd(due), 7)),
+        notificationDate: "", justificatifLink: "",
+        justificatifFile: "", justificatifFileName: "", notes: ""
+      });
+    });
+    seeded = true;
+  }
+  if (!DATA.disbursements.length) {
+    const s = DATA.settings;
+    const start = parseYmd(s.startDate);
+    for (let i = 0; i < s.duration; i++) {
+      const m = addMonths(start, i);
+      const monthLabel = m.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+      const expectedValidation = ymd(new Date(m.getFullYear(), m.getMonth() + 1, 0));
+      DATA.disbursements.push({
+        id: uid(), index: i + 1, month: monthLabel,
+        amount: s.monthly, paidAmount: "",
+        validationDate: "", expectedDate: ymd(addDays(parseYmd(expectedValidation), s.delay)),
+        receivedDate: "", receiptRef: "",
+        receiptFile: "", receiptFileName: "", status: "pending"
+      });
+    }
+    seeded = true;
+  }
+  if (seeded) saveData();
 }
 function saveData() {
   localStorage.setItem(STORE_KEY, JSON.stringify(DATA));
@@ -85,7 +130,7 @@ function renderDashboard() {
 
   const paid = DATA.disbursements.filter(d => d.status === "paid");
   document.getElementById("kpiPaid").textContent = `${paid.length} / ${s.duration}`;
-  const paidAmt = paid.reduce((a, b) => a + (Number(b.paidAmount) || 0), 0);
+  const paidAmt = DATA.disbursements.reduce((a, b) => a + (Number(b.paidAmount) || 0), 0);
   document.getElementById("kpiRemaining").textContent = fmtMoney((s.total || 0) - paidAmt);
 
   // Days this month
@@ -312,36 +357,47 @@ function newDeliverable(extra = {}) {
   };
 }
 
+let EXPANDED_DELIV = null;
 function renderDeliverables() {
   const list = document.getElementById("deliverablesList");
   if (!DATA.deliverables.length) {
-    list.innerHTML = `<p class="alert-empty">Aucun livrable. Cliquez sur « Charger livrables types du contrat » pour pré-remplir.</p>`;
+    list.innerHTML = `<p class="alert-empty">Aucun livrable. Cliquez sur « + Nouveau » ou « Charger livrables types ».</p>`;
     return;
   }
   const today = ymd(new Date());
   list.innerHTML = DATA.deliverables.map(d => {
     const overdue = d.dueDate && d.dueDate < today && !d.deliveredDate;
     const cls = d.validated ? "validated" : (d.deliveredDate ? "delivered" : (overdue ? "overdue" : ""));
+    const isOpen = EXPANDED_DELIV === d.id;
     const fileLink = d.justificatifFile
       ? `<a href="${d.justificatifFile}" download="${esc(d.justificatifFileName)}">📎 ${esc(d.justificatifFileName)}</a>
          <span class="clear-file" data-clear="${d.id}">✕</span>`
       : `<input type="file" data-f="justificatifFile" />`;
+    const badge = d.validated ? '<span class="status-badge status-validated">Validé</span>'
+                : d.deliveredDate ? '<span class="status-badge status-done">Livré</span>'
+                : overdue ? '<span class="status-badge status-overdue">Retard</span>'
+                : '<span class="status-badge status-todo">À faire</span>';
     return `
-    <div class="deliv-card ${cls}" data-id="${d.id}">
-      <div class="top">
-        <input class="title" data-f="title" value="${esc(d.title)}" />
-        <select data-f="status">
-          <option value="todo" ${d.status==="todo"?"selected":""}>À faire</option>
-          <option value="doing" ${d.status==="doing"?"selected":""}>En cours</option>
-          <option value="delivered" ${d.status==="delivered"?"selected":""}>Livré</option>
-        </select>
-        <label style="flex-direction:row;align-items:center;gap:4px;">
-          <input type="checkbox" data-f="validated" ${d.validated?"checked":""} /> Validé
-        </label>
-        ${overdue ? '<span class="status-badge status-overdue">EN RETARD</span>' : ''}
+    <div class="deliv-card ${cls} ${isOpen?'open':''}" data-id="${d.id}">
+      <div class="deliv-row" data-toggle="${d.id}">
+        <span class="deliv-title">${esc(d.title)}</span>
+        <span class="deliv-meta">${d.dueDate ? '📅 '+d.dueDate : ''}</span>
+        ${badge}
+        <span class="caret">${isOpen?'▾':'▸'}</span>
       </div>
+      ${isOpen ? `
       <div class="fields">
-        <label>Description <textarea data-f="desc" rows="2">${esc(d.desc)}</textarea></label>
+        <label>Titre <input class="title" data-f="title" value="${esc(d.title)}" /></label>
+        <label>Statut
+          <select data-f="status">
+            <option value="todo" ${d.status==="todo"?"selected":""}>À faire</option>
+            <option value="doing" ${d.status==="doing"?"selected":""}>En cours</option>
+            <option value="delivered" ${d.status==="delivered"?"selected":""}>Livré</option>
+          </select>
+        </label>
+        <label>Validé par coord.
+          <input type="checkbox" data-f="validated" ${d.validated?"checked":""} />
+        </label>
         <label>Récurrence
           <select data-f="recurrence">
             <option value="ponctuel" ${d.recurrence==="ponctuel"?"selected":""}>Ponctuel</option>
@@ -353,18 +409,28 @@ function renderDeliverables() {
         <label>Date prévue <input type="date" data-f="dueDate" value="${d.dueDate||""}" /></label>
         <label>Date livrée <input type="date" data-f="deliveredDate" value="${d.deliveredDate||""}" /></label>
         <label>Évaluateur (qui ?) <input data-f="evaluator" value="${esc(d.evaluator)}" /></label>
-        <label>Méthode d'évaluation (comment ?) <input data-f="evaluationMethod" value="${esc(d.evaluationMethod)}" /></label>
-        <label>Échéance d'évaluation (quand ?) <input type="date" data-f="evaluationDeadline" value="${d.evaluationDeadline||""}" /></label>
+        <label>Méthode (comment ?) <input data-f="evaluationMethod" value="${esc(d.evaluationMethod)}" /></label>
+        <label>Échéance évaluation <input type="date" data-f="evaluationDeadline" value="${d.evaluationDeadline||""}" /></label>
         <label>Date notification <input type="date" data-f="notificationDate" value="${d.notificationDate||""}" /></label>
+        <label style="grid-column:1/-1;">Description <textarea data-f="desc" rows="2">${esc(d.desc)}</textarea></label>
         <label>Justificatif — lien <input data-f="justificatifLink" value="${esc(d.justificatifLink)}" placeholder="URL Drive..." /></label>
         <label>Justificatif — fichier <div class="file-row">${fileLink}</div></label>
-        <label style="grid-column: 1 / -1;">Notes <textarea data-f="notes" rows="2">${esc(d.notes)}</textarea></label>
+        <label style="grid-column:1/-1;">Notes <textarea data-f="notes" rows="2">${esc(d.notes)}</textarea></label>
       </div>
       <div class="actions">
         <button class="icon-btn" data-del="${d.id}">🗑️ Supprimer</button>
-      </div>
+      </div>` : ''}
     </div>`;
   }).join("");
+
+  list.querySelectorAll("[data-toggle]").forEach(el => {
+    el.addEventListener("click", e => {
+      if (e.target.closest("input, select, textarea, button, a")) return;
+      const id = el.dataset.toggle;
+      EXPANDED_DELIV = EXPANDED_DELIV === id ? null : id;
+      renderDeliverables();
+    });
+  });
 
   list.querySelectorAll(".deliv-card").forEach(card => {
     const id = card.dataset.id;
@@ -514,41 +580,90 @@ document.getElementById("addLeave").addEventListener("click", () => {
 });
 
 // ---------- DISBURSEMENTS ----------
+let EXPANDED_DISB = null;
+
+// Règles de cohérence : paidAmount ↔ status ↔ receivedDate
+function reconcileDisbursement(d) {
+  if (d.paidAmount && Number(d.paidAmount) > 0) {
+    d.status = "paid";
+    if (!d.receivedDate) d.receivedDate = ymd(new Date());
+  } else if (d.validationDate) {
+    if (d.status === "pending") d.status = "validated";
+  }
+  if (d.validationDate) {
+    d.expectedDate = ymd(addDays(parseYmd(d.validationDate), DATA.settings.delay || 15));
+  }
+  // Paiement par défaut = montant théorique si status=paid et vide
+  if (d.status === "paid" && !d.paidAmount) d.paidAmount = d.amount;
+}
+
 function renderDisbursements() {
-  const tb = document.getElementById("disbursementsBody");
-  tb.innerHTML = DATA.disbursements.map(d => `
-    <tr data-id="${d.id}">
-      <td>${d.index}</td>
-      <td>${d.month}</td>
-      <td>${fmtMoney(d.amount)}</td>
-      <td><input type="number" step="0.001" data-f="paidAmount" value="${d.paidAmount||""}" /></td>
-      <td><input type="date" data-f="validationDate" value="${d.validationDate||""}" /></td>
-      <td><input type="date" data-f="receivedDate" value="${d.receivedDate||""}" /></td>
-      <td><input data-f="receiptRef" value="${esc(d.receiptRef)}" placeholder="N° reçu" /></td>
-      <td class="receipt-cell">
-        ${d.receiptFile
-          ? `<span class="file-attach"><a href="${d.receiptFile}" download="${esc(d.receiptFileName)}">📎 ${esc(d.receiptFileName)}</a> <span class="clear-file" data-clear="${d.id}">✕</span></span>`
-          : `<input type="file" data-f="receiptFile" accept="image/*,application/pdf" />`}
-      </td>
-      <td>
-        <select data-f="status">
-          <option value="pending" ${d.status==="pending"?"selected":""}>En attente</option>
-          <option value="validated" ${d.status==="validated"?"selected":""}>Validé</option>
-          <option value="paid" ${d.status==="paid"?"selected":""}>Payé</option>
-          <option value="overdue" ${d.status==="overdue"?"selected":""}>Retard</option>
-        </select>
-      </td>
-      <td><button class="icon-btn" data-del="${d.id}">🗑️</button></td>
-    </tr>
-  `).join("");
-  tb.querySelectorAll("input, select").forEach(el => {
+  const list = document.getElementById("disbursementsList");
+  if (!DATA.disbursements.length) {
+    list.innerHTML = `<p class="alert-empty">Aucune mensualité. Cliquez sur « Régénérer l'échéancier ».</p>`;
+    updateDisbTotals(); return;
+  }
+  const today = ymd(new Date());
+  list.innerHTML = DATA.disbursements.map(d => {
+    const isOpen = EXPANDED_DISB === d.id;
+    const overdue = d.expectedDate && d.expectedDate < today && d.status !== "paid";
+    if (overdue && d.status !== "paid") d.status = "overdue";
+    const badge = d.status === "paid" ? '<span class="status-badge status-paid">Payé</span>'
+                : d.status === "validated" ? '<span class="status-badge status-pending">Validé</span>'
+                : d.status === "overdue" ? '<span class="status-badge status-overdue">Retard</span>'
+                : '<span class="status-badge status-todo">En attente</span>';
+    const fileLink = d.receiptFile
+      ? `<a href="${d.receiptFile}" download="${esc(d.receiptFileName)}">📎 ${esc(d.receiptFileName)}</a>
+         <span class="clear-file" data-clear="${d.id}">✕</span>`
+      : `<input type="file" data-f="receiptFile" accept="image/*,application/pdf" />`;
+    return `
+    <div class="deliv-card ${d.status} ${isOpen?'open':''}" data-id="${d.id}">
+      <div class="deliv-row" data-toggle="${d.id}">
+        <span class="deliv-title">#${d.index} — ${esc(d.month)}</span>
+        <span class="deliv-meta">${fmtMoney(d.amount)}${d.paidAmount?` → <b>${fmtMoney(d.paidAmount)}</b>`:''}</span>
+        ${badge}
+        <span class="caret">${isOpen?'▾':'▸'}</span>
+      </div>
+      ${isOpen ? `
+      <div class="fields">
+        <label>Montant théorique (TTC) <input type="number" step="0.001" data-f="amount" value="${d.amount||""}" /></label>
+        <label>Montant payé (TTC) <input type="number" step="0.001" data-f="paidAmount" value="${d.paidAmount||""}" /></label>
+        <label>Date validation livrables <input type="date" data-f="validationDate" value="${d.validationDate||""}" /></label>
+        <label>Date paiement attendue <input type="date" value="${d.expectedDate||""}" disabled /></label>
+        <label>Date de réception <input type="date" data-f="receivedDate" value="${d.receivedDate||""}" /></label>
+        <label>Référence reçu <input data-f="receiptRef" value="${esc(d.receiptRef)}" placeholder="N° reçu" /></label>
+        <label>Reçu (fichier) <div class="file-row">${fileLink}</div></label>
+        <label>Statut
+          <select data-f="status">
+            <option value="pending" ${d.status==="pending"?"selected":""}>En attente</option>
+            <option value="validated" ${d.status==="validated"?"selected":""}>Validé</option>
+            <option value="paid" ${d.status==="paid"?"selected":""}>Payé</option>
+            <option value="overdue" ${d.status==="overdue"?"selected":""}>Retard</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button data-paynow="${d.id}">💰 Marquer payé maintenant</button>
+        <button class="icon-btn" data-del="${d.id}">🗑️ Supprimer</button>
+      </div>` : ''}
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll("[data-toggle]").forEach(el => {
+    el.addEventListener("click", e => {
+      if (e.target.closest("input, select, textarea, button, a")) return;
+      const id = el.dataset.toggle;
+      EXPANDED_DISB = EXPANDED_DISB === id ? null : id;
+      renderDisbursements();
+    });
+  });
+  list.querySelectorAll("input, select").forEach(el => {
     if (el.type === "file") {
       el.addEventListener("change", e => {
-        const id = e.target.closest("tr").dataset.id;
+        const id = e.target.closest(".deliv-card").dataset.id;
         const item = DATA.disbursements.find(x => x.id === id);
-        const f = e.target.files[0];
-        if (!f) return;
-        if (f.size > 2 * 1024 * 1024) { alert("Fichier > 2 Mo : compressez ou utilisez un lien."); return; }
+        const f = e.target.files[0]; if (!f) return;
+        if (f.size > 2 * 1024 * 1024) { alert("Fichier > 2 Mo."); return; }
         const r = new FileReader();
         r.onload = ev => {
           item.receiptFile = ev.target.result;
@@ -557,36 +672,61 @@ function renderDisbursements() {
         };
         r.readAsDataURL(f);
       });
+    } else if (el.disabled) {
+      // skip
     } else {
       el.addEventListener("change", e => {
-        const id = e.target.closest("tr").dataset.id;
+        const id = e.target.closest(".deliv-card").dataset.id;
         const item = DATA.disbursements.find(x => x.id === id);
         item[e.target.dataset.f] = e.target.value;
-        if (e.target.dataset.f === "validationDate" && e.target.value) {
-          const expected = addDays(parseYmd(e.target.value), DATA.settings.delay || 15);
-          item.expectedDate = ymd(expected);
-        }
-        saveData(); updateDisbTotals();
+        reconcileDisbursement(item);
+        saveData(); renderDisbursements(); renderDashboard();
       });
     }
   });
-  tb.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => {
+  list.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => {
     const item = DATA.disbursements.find(x => x.id === b.dataset.clear);
     item.receiptFile = ""; item.receiptFileName = "";
     saveData(); renderDisbursements();
   }));
-  tb.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
+  list.querySelectorAll("[data-paynow]").forEach(b => b.addEventListener("click", () => {
+    const item = DATA.disbursements.find(x => x.id === b.dataset.paynow);
+    item.paidAmount = item.amount;
+    item.receivedDate = ymd(new Date());
+    item.status = "paid";
+    saveData(); renderDisbursements(); renderDashboard();
+  }));
+  list.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
+    if (!confirm("Supprimer ?")) return;
     DATA.disbursements = DATA.disbursements.filter(x => x.id !== b.dataset.del);
-    saveData(); renderDisbursements();
+    saveData(); renderDisbursements(); renderDashboard();
   }));
   updateDisbTotals();
 }
+
+document.getElementById("addDisbursement").addEventListener("click", () => {
+  const s = DATA.settings;
+  const idx = DATA.disbursements.length + 1;
+  const start = parseYmd(s.startDate);
+  const m = addMonths(start, idx - 1);
+  DATA.disbursements.push({
+    id: uid(), index: idx,
+    month: m.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+    amount: s.monthly, paidAmount: "",
+    validationDate: "", expectedDate: "", receivedDate: "",
+    receiptRef: "", receiptFile: "", receiptFileName: "", status: "pending"
+  });
+  saveData(); renderDisbursements();
+});
 function updateDisbTotals() {
   const theoretical = DATA.disbursements.reduce((a,b)=>a+(Number(b.amount)||0),0);
   const received = DATA.disbursements.reduce((a,b)=>a+(Number(b.paidAmount)||0),0);
   document.getElementById("totalTheoretical").textContent = fmtMoney(theoretical);
   document.getElementById("totalReceived").textContent = fmtMoney(received);
   document.getElementById("totalRemaining").textContent = fmtMoney(theoretical - received);
+  const pct = theoretical ? Math.round((received / theoretical) * 100) : 0;
+  const pe = document.getElementById("totalProgress");
+  if (pe) pe.textContent = pct + "%";
 }
 document.getElementById("generateSchedule").addEventListener("click", () => {
   if (DATA.disbursements.length && !confirm("Remplacer l'échéancier existant ?")) return;
@@ -706,6 +846,7 @@ function attemptLogin() {
 function revealApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("appRoot").style.display = "";
+  autoSeed();
   loadSettingsForm();
   renderAll();
   updateFooterStatus();

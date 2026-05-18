@@ -170,24 +170,18 @@
   <section id="disbursements" class="panel">
     <div class="toolbar">
       <h2>Décaissements / Paiements</h2>
-      <button id="generateSchedule" class="primary">Générer l'échéancier (19 mois)</button>
+      <button id="addDisbursement" class="primary">+ Ajouter mensualité</button>
+      <button id="generateSchedule">Régénérer échéancier complet</button>
     </div>
     <p class="info">
-      Validation des livrables par le coordinateur → Paiement sous <b>15 jours</b>.
-      Mensualité théorique nette : voir Paramètres.
+      <b>Formule</b> : Total perçu = Σ montants payés · Reste = Total contrat − Total perçu · Paiement attendu = Validation + 15 jours
     </p>
-    <table class="data-table">
-      <thead><tr>
-        <th>#</th><th>Mois</th><th>Montant théorique (TTC)</th><th>Montant payé</th>
-        <th>Date validation livrables</th><th>Date réception</th>
-        <th>Référence reçu</th><th>Reçu (fichier)</th><th>Statut</th><th></th>
-      </tr></thead>
-      <tbody id="disbursementsBody"></tbody>
-    </table>
+    <div id="disbursementsList" class="cards-list"></div>
     <div class="totals">
-      <div>Total théorique : <b id="totalTheoretical">0</b> DT</div>
-      <div>Total perçu : <b id="totalReceived">0</b> DT</div>
-      <div>Reste à percevoir : <b id="totalRemaining">0</b> DT</div>
+      <div>Total théorique : <b id="totalTheoretical">0</b></div>
+      <div>Total perçu : <b id="totalReceived">0</b></div>
+      <div>Reste à percevoir : <b id="totalRemaining">0</b></div>
+      <div>Progression : <b id="totalProgress">0%</b></div>
     </div>
   </section>
 

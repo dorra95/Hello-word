@@ -141,11 +141,22 @@ footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 12px; }
 .alert-item .when { font-size: 11px; opacity: .8; margin-left: 6px; }
 .alert-empty { color: #64748b; font-style: italic; font-size: 13px; }
 
-.cards-list { display: grid; gap: 14px; }
+.cards-list { display: grid; gap: 8px; }
 .deliv-card {
-  background: white; padding: 14px; border-radius: 8px;
+  background: white; border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,.06); border-left: 4px solid #cbd5e1;
+  overflow: hidden;
 }
+.deliv-card.open { padding-bottom: 14px; }
+.deliv-row {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  cursor: pointer; user-select: none;
+}
+.deliv-row:hover { background: #f8fafc; }
+.deliv-title { flex: 1; font-weight: 600; font-size: 14px; }
+.deliv-meta { font-size: 12px; color: #64748b; }
+.caret { font-size: 14px; color: #94a3b8; }
+.deliv-card.open .fields, .deliv-card.open .actions { padding-left: 14px; padding-right: 14px; }
 .deliv-card.validated { border-left-color: #10b981; }
 .deliv-card.delivered { border-left-color: #3b82f6; }
 .deliv-card.overdue { border-left-color: #dc2626; background: #fff5f5; }
