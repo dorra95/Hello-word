@@ -280,6 +280,29 @@ function renderCalendar() {
   ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(d => {
     const h = document.createElement("div"); h.className = "cal-head"; h.textContent = d; grid.appendChild(h);
   });
+
+  // Index des deadlines par date
+  const marks = {};
+  const push = (date, type, label) => {
+    if (!date) return;
+    (marks[date] ||= []).push({ type, label });
+  };
+  DATA.deliverables.forEach(d => {
+    push(d.dueDate, "deliv", `📄 ${d.title}`);
+    push(d.evaluationDeadline, "eval", `🔍 Éval: ${d.title}`);
+  });
+  DATA.disbursements.forEach(d => {
+    push(d.expectedDate, "pay", `💰 Paiement ${d.month} (${fmtMoney(d.amount)})`);
+    push(d.validationDate, "valid", `✅ Validation ${d.month}`);
+  });
+  DATA.tasks.forEach(t => push(t.due, "task", `📋 ${t.title}`));
+  DATA.leaves.forEach(l => {
+    if (!l.from || !l.to) return;
+    let cur = parseYmd(l.from), end = parseYmd(l.to);
+    while (cur <= end) { push(ymd(cur), "leave", `🌴 ${l.type}`); cur = addDays(cur, 1); }
+  });
+
+  const today = ymd(new Date());
   const firstDow = (new Date(y, m-1, 1).getDay() + 6) % 7;
   for (let i=0; i<firstDow; i++) grid.appendChild(document.createElement("div"));
   const lastDay = new Date(y, m, 0).getDate();
@@ -290,9 +313,20 @@ function renderCalendar() {
     const dow = date.getDay();
     const cell = document.createElement("div");
     cell.className = "cal-cell";
+    if (key === today) cell.classList.add("today");
     if (info.status) cell.classList.add(info.status);
     else if (dow === 0 || dow === 6) cell.classList.add("weekend");
-    cell.innerHTML = `<div class="d">${d}</div><div class="desc">${(info.desc||"").slice(0,40)}</div>`;
+
+    const dayMarks = marks[key] || [];
+    const dots = dayMarks.map(m => `<span class="cal-dot ${m.type}" title="${esc(m.label)}"></span>`).join("");
+    const labels = dayMarks.slice(0, 2).map(m => `<div class="cal-label ${m.type}">${esc(m.label).slice(0,28)}</div>`).join("");
+
+    cell.innerHTML = `
+      <div class="d">${d}<span class="dots">${dots}</span></div>
+      ${info.desc ? `<div class="desc">${esc(info.desc).slice(0,30)}</div>` : ""}
+      ${labels}
+      ${dayMarks.length > 2 ? `<div class="more">+${dayMarks.length - 2}</div>` : ""}
+    `;
     cell.addEventListener("click", () => openDayEditor(key));
     grid.appendChild(cell);
   }
@@ -819,7 +853,23 @@ document.getElementById("resetData").addEventListener("click", () => {
 // ---------- UTIL ----------
 function esc(s) { return String(s||"").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
+function renderContractBanner() {
+  const s = DATA.settings;
+  const end = ymd(addMonths(parseYmd(s.startDate), s.duration));
+  const html = `
+    <div class="contract-banner">
+      <div><b>📅 Période</b><br>${s.startDate} → ${end} (${s.duration} mois)</div>
+      <div><b>💼 Régime</b><br>${s.workDays} j/semaine · ${s.hoursPerDay}h/j</div>
+      <div><b>💰 Mensuel net</b><br>${fmtMoney(s.monthly)}</div>
+      <div><b>📦 Total contrat</b><br>${fmtMoney(s.total)}</div>
+      <div><b>⏱️ Délai paiement</b><br>Validation + ${s.delay} j</div>
+      <div><b>🌴 Congés</b><br>${s.leaveRate || 1.8333} j/mois</div>
+    </div>`;
+  document.querySelectorAll(".contract-banner-slot").forEach(el => el.innerHTML = html);
+}
+
 function renderAll() {
+  renderContractBanner();
   renderDashboard();
   renderCalendar();
   renderDeliverables();

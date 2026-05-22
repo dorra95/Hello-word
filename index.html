@@ -42,6 +42,7 @@
 <main>
   <!-- DASHBOARD -->
   <section id="dashboard" class="panel active">
+    <div class="contract-banner-slot"></div>
     <div class="cards">
       <div class="card"><span class="label">Consultante</span><span class="value" id="kpiName">—</span></div>
       <div class="card"><span class="label">Montant total contrat (TTC)</span><span class="value" id="kpiTotal">—</span></div>
@@ -78,6 +79,7 @@
 
   <!-- CALENDAR / DAYS -->
   <section id="calendar" class="panel">
+    <div class="contract-banner-slot"></div>
     <div class="toolbar">
       <input type="month" id="calMonth" />
       <button id="prevMonth">◀</button>
@@ -90,6 +92,14 @@
         <span class="lg f">Férié</span>
         <span class="lg w">Week-end</span>
       </span>
+    </div>
+    <div class="legend deadlines-legend">
+      <span><span class="cal-dot deliv"></span> Livrable</span>
+      <span><span class="cal-dot eval"></span> Évaluation</span>
+      <span><span class="cal-dot valid"></span> Validation</span>
+      <span><span class="cal-dot pay"></span> Paiement</span>
+      <span><span class="cal-dot task"></span> Tâche</span>
+      <span><span class="cal-dot leave"></span> Congé</span>
     </div>
     <div id="calendarGrid" class="calendar-grid"></div>
     <div id="dayEditor" class="day-editor hidden">
@@ -120,6 +130,7 @@
 
   <!-- DELIVERABLES -->
   <section id="deliverables" class="panel">
+    <div class="contract-banner-slot"></div>
     <div class="toolbar">
       <h2>Livrables attendus</h2>
       <button id="addDeliverable" class="primary">+ Nouveau livrable</button>
@@ -133,6 +144,7 @@
 
   <!-- TASKS -->
   <section id="tasks" class="panel">
+    <div class="contract-banner-slot"></div>
     <div class="toolbar">
       <h2>Tâches</h2>
       <button id="addTask" class="primary">+ Nouvelle tâche</button>
@@ -153,6 +165,7 @@
 
   <!-- LEAVES -->
   <section id="leaves" class="panel">
+    <div class="contract-banner-slot"></div>
     <div class="toolbar">
       <h2>Congés &amp; Autorisations</h2>
       <button id="addLeave" class="primary">+ Nouvelle demande</button>
@@ -168,6 +181,7 @@
 
   <!-- DISBURSEMENTS -->
   <section id="disbursements" class="panel">
+    <div class="contract-banner-slot"></div>
     <div class="toolbar">
       <h2>Décaissements / Paiements</h2>
       <button id="addDisbursement" class="primary">+ Ajouter mensualité</button>
