@@ -72,15 +72,33 @@ Sans config Firebase, chaque utilisateur a ses données isolées. Pour partager 
 
 Tous les utilisateurs avec le code d'accès partagent désormais le même espace de travail (un document Firestore identifié par `workspaceId`).
 
-### Règles Firestore recommandées (mode lecture/écriture pour utilisateurs authentifiés)
+### 👑 Mode Admin vs 👁️ Visiteur
+
+L'app reconnaît 2 niveaux de codes définis dans `config.js` :
+- `adminCodes` → toi : lecture **+** modification
+- `viewerCodes` → tout le monde : **lecture seule** (tous les boutons et champs sont désactivés)
+
+**⚠️ Important** : La protection côté navigateur peut être contournée par un utilisateur technique. Pour une **vraie** protection serveur, appliquer les règles Firestore ci-dessous, qui n'autorisent l'écriture qu'aux clients dont l'UID figure dans la liste blanche.
+
+### Règles Firestore — lecture publique authentifiée, écriture admin uniquement
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /workspaces/{workspaceId} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      // Remplacer "TON_UID_ANONYME" par ton UID Firebase (visible dans
+      // l'onglet Authentication > Users après ta 1ère connexion admin)
+      allow write: if request.auth != null
+                   && request.auth.uid in ["TON_UID_ANONYME"];
     }
   }
 }
 ```
+
+**Procédure** :
+1. Te connecter une 1ère fois avec ton code admin → Firebase crée ton UID
+2. Console Firebase → Authentication → Users → copier ton UID
+3. Coller cet UID dans la règle ci-dessus → Publier
+4. Désormais seul ton appareil peut écrire ; tous les autres lisent uniquement

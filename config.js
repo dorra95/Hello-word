@@ -8,10 +8,19 @@
 //    Changez ces valeurs avant le déploiement.
 //
 window.APP_CONFIG = {
-  accessCodes: [
-    "GREENTECH2026",   // code principal — à partager
-    "EYA-CONSULT"      // code secondaire
+  // CODE ADMIN — réservé à toi (lecture + modification)
+  adminCodes: [
+    "EYA-ADMIN-2026"
   ],
+
+  // CODES VISITEURS — à partager (lecture seule)
+  viewerCodes: [
+    "GREENTECH2026",
+    "CONSULT-VIEW"
+  ],
+
+  // (compat ancien champ — ignoré si adminCodes/viewerCodes sont définis)
+  accessCodes: [],
 
   // 2) FIREBASE (optionnel — pour partager les données entre utilisateurs)
   //    Si vide, les données restent locales (localStorage).

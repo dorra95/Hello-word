@@ -96,11 +96,16 @@ function autoSeed() {
   if (seeded) saveData();
 }
 function saveData() {
+  // Protection lecture seule
+  try {
+    if (sessionStorage.getItem(ROLE_KEY) === "viewer") return;
+  } catch {}
   localStorage.setItem(STORE_KEY, JSON.stringify(DATA));
   if (window.SYNC && window.SYNC.enabled && window.SYNC.remoteWrite) {
     window.SYNC.remoteWrite(DATA);
   }
 }
+const ROLE_KEY = "consultantTrackerRole";
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function fmtMoney(n) { return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + " DT"; }
 function pad(n) { return String(n).padStart(2, "0"); }
@@ -876,6 +881,7 @@ function renderAll() {
   renderTasks();
   renderLeaves();
   renderDisbursements();
+  applyReadOnlyMode();
 }
 
 // ---------- LOGIN GATE ----------
@@ -883,11 +889,22 @@ const SESSION_KEY = "consultantTrackerSession";
 function checkSession() {
   try { return sessionStorage.getItem(SESSION_KEY) === "ok"; } catch { return false; }
 }
+function currentRole() {
+  try { return sessionStorage.getItem(ROLE_KEY) || "viewer"; } catch { return "viewer"; }
+}
+function isAdmin() { return currentRole() === "admin"; }
+
 function attemptLogin() {
   const code = (document.getElementById("accessCode").value || "").trim();
-  const valid = ((window.APP_CONFIG && window.APP_CONFIG.accessCodes) || []);
-  if (valid.includes(code)) {
+  const cfg = window.APP_CONFIG || {};
+  const admins = cfg.adminCodes || [];
+  const viewers = cfg.viewerCodes || cfg.accessCodes || [];
+  let role = null;
+  if (admins.includes(code)) role = "admin";
+  else if (viewers.includes(code)) role = "viewer";
+  if (role) {
     sessionStorage.setItem(SESSION_KEY, "ok");
+    sessionStorage.setItem(ROLE_KEY, role);
     revealApp();
   } else {
     document.getElementById("loginError").textContent = "Code incorrect.";
@@ -896,20 +913,41 @@ function attemptLogin() {
 function revealApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("appRoot").style.display = "";
-  autoSeed();
+  document.body.classList.toggle("role-viewer", !isAdmin());
+  document.body.classList.toggle("role-admin", isAdmin());
+  if (isAdmin()) autoSeed();
   loadSettingsForm();
   renderAll();
   updateFooterStatus();
+  applyReadOnlyMode();
 }
+
+// Bloque toute écriture quand l'utilisateur n'est pas admin
+function applyReadOnlyMode() {
+  if (isAdmin()) return;
+  // Désactive tout contrôle interactif après chaque rendu
+  const root = document.getElementById("appRoot");
+  root.querySelectorAll("input, select, textarea, button").forEach(el => {
+    // Garde actif : logout, navigation des onglets, changeur de mois
+    if (el.id === "logoutBtn") return;
+    if (el.classList.contains("tab")) return;
+    if (el.id === "calMonth" || el.id === "prevMonth" || el.id === "nextMonth") return;
+    if (el.id === "taskFilter") return;
+    if (el.tagName === "BUTTON") el.style.display = "none";
+    else el.disabled = true;
+  });
+}
+
 function updateFooterStatus() {
   const f = document.getElementById("footerStatus");
+  const roleTxt = isAdmin() ? "👑 Admin (lecture + modification)" : "👁️ Lecture seule";
+  let syncTxt;
   if (window.SYNC && window.SYNC.enabled) {
-    f.textContent = window.SYNC.ready
-      ? "🟢 Synchro partagée active (Firebase)"
-      : "🟡 Connexion à la base partagée...";
+    syncTxt = window.SYNC.ready ? "🟢 Base partagée Firebase" : "🟡 Connexion...";
   } else {
-    f.textContent = "💾 Données locales (localStorage)";
+    syncTxt = "💾 Données locales";
   }
+  f.innerHTML = `${roleTxt} · ${syncTxt}`;
 }
 document.getElementById("loginBtn").addEventListener("click", attemptLogin);
 document.getElementById("accessCode").addEventListener("keydown", e => {

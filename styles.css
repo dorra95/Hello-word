@@ -141,6 +141,11 @@ footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 12px; }
 .alert-item .when { font-size: 11px; opacity: .8; margin-left: 6px; }
 .alert-empty { color: #64748b; font-style: italic; font-size: 13px; }
 
+body.role-viewer .contract-banner::after {
+  content: "👁️ Mode lecture seule — contactez l'admin pour modifier";
+  grid-column: 1 / -1; font-size: 11px; color: #92400e;
+  background: #fef3c7; padding: 4px 8px; border-radius: 4px; text-align: center;
+}
 .contract-banner {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px; padding: 12px 14px; margin-bottom: 14px;
