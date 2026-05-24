@@ -10,13 +10,12 @@
 window.APP_CONFIG = {
   // CODE ADMIN — réservé à toi (lecture + modification)
   adminCodes: [
-    "EYA-ADMIN-2026"
+    "ADMIN-2026"
   ],
 
   // CODES VISITEURS — à partager (lecture seule)
   viewerCodes: [
-    "GREENTECH2026",
-    "CONSULT-VIEW"
+    "GREENTECH2026"
   ],
 
   // (compat ancien champ — ignoré si adminCodes/viewerCodes sont définis)

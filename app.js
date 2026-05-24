@@ -3,7 +3,7 @@
 // ============================================================
 
 const DEFAULT_SETTINGS = {
-  name: "Eya TBORSKI MANAI",
+  name: "",
   client: "Caisse des Dépôts et Consignations",
   project: "Initiative GreenTech Tunisie — Greenov'i (Expertise France / UE)",
   signDate: "2026-03-04",

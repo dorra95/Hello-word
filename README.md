@@ -24,7 +24,6 @@ python3 -m http.server
 
 | Champ | Valeur |
 |---|---|
-| Consultante | Eya TBORSKI MANAI |
 | Client | Caisse des Dépôts et Consignations |
 | Projet | Initiative GreenTech Tunisie — Greenov'i (Expertise France / UE) |
 | Montant total | 100 700,000 DT TTC |
@@ -43,7 +42,8 @@ Données enregistrées localement (`localStorage`) par défaut. Pour partager le
 Au chargement, l'application demande un code d'accès. Modifier la liste dans `config.js` :
 
 ```js
-accessCodes: ["GREENTECH2026", "EYA-CONSULT"]
+adminCodes:  ["CHANGE-MOI-ADMIN"]
+viewerCodes: ["CHANGE-MOI-VIEW"]
 ```
 
 Les codes par défaut sont à changer avant tout partage public.
