@@ -32,12 +32,12 @@ window.APP_CONFIG = {
   //    e) Coller la config ci-dessous
   //
   firebase: {
-    // apiKey: "AIza...",
-    // authDomain: "xxx.firebaseapp.com",
-    // projectId: "xxx",
-    // storageBucket: "xxx.appspot.com",
-    // messagingSenderId: "...",
-    // appId: "..."
+    apiKey: "AIzaSyAh4TyGRujoVZOlc8QIed4IHXE34ROpGSE",
+    authDomain: "suivi-greentech.firebaseapp.com",
+    projectId: "suivi-greentech",
+    storageBucket: "suivi-greentech.firebasestorage.app",
+    messagingSenderId: "851017030075",
+    appId: "1:851017030075:web:3c4db297284ced1d34cc9e"
   },
 
   // Identifiant de l'espace de travail partagé (document Firestore)
